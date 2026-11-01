@@ -4,6 +4,8 @@ A one-line usage band above the Claude Code prompt: context fill, rate-limit win
 
 在 Claude Code 输入框上方显示一行用量信息：上下文占用、限额窗口及重置倒计时，以及今日、本计费周、本月的估算费用。
 
+![usage-band in the desktop app](docs/screenshot.png)
+
 ```
 ◑ 50% ctx · ○ 3% 5h · 4h22m · ◔ 25% 7d · 4d17h · $12.50/D · $85/W · $300/M
 ```
@@ -19,6 +21,8 @@ In the desktop app each percentage gets a small ring; in the terminal, a pie gly
 | `ctx` | Context used, against the auto-compact window (same as `/context`) | 上下文占用，按自动压缩窗口计算（与 `/context` 一致） |
 | `5h` / `7d` | Five-hour and seven-day limit usage, with time until reset | 5 小时、7 天限额已用比例，及距重置的时间 |
 | `/D` `/W` `/M` | Estimated cost today, this billing week, this month | 今日、本计费周、本月的估算费用 |
+
+![ring colors: normal, warning, critical](docs/states.svg)
 
 - Colors follow the app's own usage popover: normal below 75%, amber from 75%, red from 90%.
 - The billing week is the seven-day limit's window, not a calendar week; `/W` is hidden without it (e.g. on an API key).
