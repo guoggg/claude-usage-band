@@ -22,12 +22,18 @@ from datetime import datetime
 
 # USD per million tokens: input, output, 5m cache write, 1h cache write, cache read.
 PRICES = [
+    ("claude-fable-5-2", (8.0, 40.0, 10.0, 16.0, 0.2)),
+    ("claude-mythos-5-2", (8.0, 40.0, 10.0, 16.0, 0.2)),
     ("claude-fable-5-1", (10.0, 50.0, 12.5, 20.0, 0.25)),
     ("claude-mythos-5-1", (10.0, 50.0, 12.5, 20.0, 0.25)),
     ("claude-fable-5", (10.0, 50.0, 12.5, 20.0, 1.0)),
+    ("claude-mythos-5", (10.0, 50.0, 12.5, 20.0, 1.0)),
     ("claude-opus-5-5", (4.0, 20.0, 5.0, 8.0, 0.2)),
     ("claude-opus-5", (5.0, 25.0, 6.25, 10.0, 0.5)),
+    ("claude-opus-4-1", (15.0, 75.0, 18.75, 30.0, 1.5)),
+    ("claude-opus-4-2025", (15.0, 75.0, 18.75, 30.0, 1.5)),  # Opus 4 (claude-opus-4-YYYYMMDD)
     ("claude-opus-4", (5.0, 25.0, 6.25, 10.0, 0.5)),
+    ("claude-sonnet-5-5", (2.0, 10.0, 2.5, 4.0, 0.1)),
     ("claude-sonnet-5", (2.0, 10.0, 2.5, 4.0, 0.2)),
     ("claude-sonnet-4", (3.0, 15.0, 3.75, 6.0, 0.3)),
     ("claude-haiku-5-5", (0.1, 0.5, 0.125, 0.2, 0.01)),
@@ -61,6 +67,8 @@ def cost(model, u):
         scale = 5.0
     if u.get("speed") == "fast":
         scale *= 2.0
+    if u.get("inference_geo") == "us":
+        scale *= 1.1
     usd = (inp * r[0] + out * r[1] + w5 * r[2] + w1 * r[3] + read * r[4]) * scale / 1e6
     web = (u.get("server_tool_use") or {}).get("web_search_requests") or 0
     return usd + web * WEB_SEARCH_USD
