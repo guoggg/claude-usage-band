@@ -1,6 +1,6 @@
 {
   "name": "usage-band",
-  "version": "0.1.1",
-  "description": "One-line band above the prompt: context fill, rate-limit windows, day/billing-week/month cost",
+  "version": "0.2.0",
+  "description": "One-line band above the prompt: context fill, rate-limit windows with in-window cost, day/month cost",
   "types": "./types/index.d.ts"
 }

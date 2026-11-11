@@ -1,14 +1,14 @@
-"""Sum API-equivalent cost of Claude Code transcripts for today, the billing
-week and this month.
+"""Sum API-equivalent cost of Claude Code transcripts for today, the five-hour
+limit window, the billing week and this month.
 
-Usage: scan.py [--week-start EPOCH_SECONDS]
+Usage: scan.py [--week-start EPOCH_SECONDS] [--five-start EPOCH_SECONDS]
 
-Reads every *.jsonl under <config>/projects modified since the earlier of the
-local month start and the billing week start (the seven-day limit window's
-start, not a calendar week), prices each unique assistant response from its
-usage block, and prints {"day": usd, "week": usd | null, "month": usd,
-"unpriced": [model, ...]} as JSON; "week" is null without --week-start.
-Local time.
+Reads every *.jsonl under <config>/projects modified since the earliest of the
+local month start and the given window starts (the seven-day and five-hour
+limit windows' starts, not calendar periods), prices each unique assistant
+response from its usage block, and prints {"day": usd, "five": usd | null,
+"week": usd | null, "month": usd, "unpriced": [model, ...]} as JSON; "five" and
+"week" are null without their flag. Local time.
 
 Per-file results are cached in <cache>/claude-usage-band/scan-cache.json:
 an unchanged file is not read, and a file that grew is read from where the
@@ -156,17 +156,22 @@ def save_cache(path, header, since, files):
     os.replace(tmp, path)
 
 
-def week_start_arg(argv):
-    if len(argv) == 3 and argv[1] == "--week-start":
-        try:
-            return float(argv[2])
-        except ValueError:
-            pass
-    return None
+def window_args(argv):
+    """{"--week-start": seconds, "--five-start": seconds}, each when given."""
+    out = {}
+    for flag, value in zip(argv[1::2], argv[2::2]):
+        if flag in ("--week-start", "--five-start"):
+            try:
+                out[flag] = float(value)
+            except ValueError:
+                pass
+    return out
 
 
 def main():
-    week_start = week_start_arg(sys.argv)
+    args = window_args(sys.argv)
+    week_start = args.get("--week-start")
+    five_start = args.get("--five-start")
     base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
     root = os.path.join(base, "projects")
     cache_dir = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
@@ -176,7 +181,7 @@ def main():
     month = today[:7]
     month_start = time.mktime((now.tm_year, now.tm_mon, 1, 0, 0, 0, 0, 0, -1))
     day_start = time.mktime((now.tm_year, now.tm_mon, now.tm_mday, 0, 0, 0, 0, 0, -1))
-    since = month_start if week_start is None else min(month_start, week_start)
+    since = min([month_start] + [w for w in (week_start, five_start) if w is not None])
 
     # Anything that changes how an entry was priced drops the cache, and a
     # new month starts it over; a cache that starts after since is rebuilt.
@@ -229,7 +234,7 @@ def main():
                 best[key] = (out, t, c)
     entries.extend((t, c) for _, t, c in best.values())
 
-    day_usd = week_usd = month_usd = 0.0
+    day_usd = five_usd = week_usd = month_usd = 0.0
     for t, c in entries:
         if t >= month_start:
             month_usd += c
@@ -237,9 +242,12 @@ def main():
             day_usd += c
         if week_start is not None and t >= week_start:
             week_usd += c
+        if five_start is not None and t >= five_start:
+            five_usd += c
 
     out = {
         "day": round(day_usd, 4),
+        "five": None if five_start is None else round(five_usd, 4),
         "week": None if week_start is None else round(week_usd, 4),
         "month": round(month_usd, 4),
         "unpriced": sorted(unpriced),

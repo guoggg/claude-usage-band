@@ -5,9 +5,9 @@ export type Snap = {
   limits: Limit[]
 }
 
-// week: the billing week (the seven-day limit's window); null off a
-// subscription, absent in a value stored before it was added.
-export type Spend = { day: number; week?: number | null; month: number; unpriced: string[] }
+// five / week: the five-hour and seven-day limits' windows; null off a
+// subscription, absent in a value stored before they were added.
+export type Spend = { day: number; five?: number | null; week?: number | null; month: number; unpriced: string[] }
 
 declare module 'claude-code' {
   interface PluginState {

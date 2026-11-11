@@ -16,7 +16,7 @@ const BAND = {
 const NOW = Date.UTC(2026, 9, 25, 12, 0)
 const HOUR = 3_600_000
 
-const SCAN = { exitCode: 0, stdout: '{"day":12.5,"week":85.4,"month":300.25,"unpriced":[]}', stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+const SCAN = { exitCode: 0, stdout: '{"day":12.5,"five":8.42,"week":128.4,"month":300.25,"unpriced":[]}', stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
 
 const usage = (usd: number) => ({
   startedAt: NOW,
@@ -28,7 +28,7 @@ const usage = (usd: number) => ({
   cost: { usd },
 })
 
-test('one line: context against the compact window, windows, scanned cost', async ($, on) => {
+test('one line: context against the compact window, windows with their spend, day and month cost', async ($, on) => {
   const clock = mock.clock(on, { now: NOW })
   mock.store(on)
   const runs: string[][] = []
@@ -51,20 +51,24 @@ test('one line: context against the compact window, windows, scanned cost', asyn
 
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
   const line = await term.find({ type: 'Text', text: /ctx/ })
-  expect(line?.text).toBe('◑ 50% ctx · ○ 3% 5h · 4h22m · ◔ 25% 7d · 4d17h · $12.50/D · $85/W · $300/M')
+  expect(line?.text).toBe('◑ 50% ctx · ○ 3% $8.4 5h · 4h22m · ◔ 25% $128 7d · 4d17h · $12.50/D · $300/M')
   await term.unmount()
 
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect((await desk.find({ type: 'Text', text: /4h22m/ }))?.text).toBe('4h22m')
   expect((await desk.find({ type: 'Text', text: /4d17h/ }))?.text).toBe('4d17h')
   expect((await desk.find({ type: 'Text', text: /\/D$/ }))?.text).toBe('$12.50/D')
-  expect((await desk.find({ type: 'Text', text: /\/W/ }))?.text).toBe('· $85/W · $300/M')
+  expect((await desk.find({ type: 'Text', text: /\/M/ }))?.text).toBe('· $300/M')
+  expect((await desk.find({ type: 'Text', text: '$8.4' }))?.props.dimColor).toBe(true)
+  expect(await desk.find({ type: 'Text', text: '$128' })).toBeTruthy()
+  expect(await desk.find({ type: 'Text', text: /\/W/ })).toBeFalsy()
   expect(await desk.find({ type: 'Svg' })).toBeTruthy()
   await desk.unmount()
 
-  // The billing week starts seven days before the seven-day window resets.
+  // Each window starts its length before its reset.
   const weekStart = (NOW + 113 * HOUR - 7 * 24 * HOUR) / 1000
-  expect(runs[0]?.slice(-2)).toEqual(['--week-start', String(weekStart)])
+  const fiveStart = (NOW + 4 * HOUR + 22 * 60_000 - 5 * HOUR) / 1000
+  expect(runs[0]?.slice(-4)).toEqual(['--week-start', String(weekStart), '--five-start', String(fiveStart)])
 })
 
 test('yields to a survey', async ($, on) => {

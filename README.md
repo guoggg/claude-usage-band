@@ -6,10 +6,10 @@
 
 ## 中文
 
-在 Claude Code 输入框上方显示一行用量信息：上下文占用、限额窗口及重置倒计时，以及今日、本计费周、本月的估算费用。
+在 Claude Code 输入框上方显示一行用量信息：上下文占用，5 小时与 7 天限额窗口的已用比例、窗口内估算费用及重置倒计时，以及今日、本月的估算费用。
 
 ```
-◑ 50% ctx · ○ 3% 5h · 4h22m · ◔ 25% 7d · 4d17h · $12.50/D · $85/W · $300/M
+◑ 50% ctx · ○ 3% $8.4 5h · 4h22m · ◔ 25% $128 7d · 4d17h · $12.50/D · $300/M
 ```
 
 桌面 app 中每个百分比带一个小圆环，终端中显示为饼图字符。
@@ -19,13 +19,13 @@
 | 项目 | 含义 |
 | --- | --- |
 | `ctx` | 上下文占用，按自动压缩窗口计算（与 `/context` 一致） |
-| `5h` / `7d` | 5 小时、7 天限额已用比例，及距重置的时间 |
-| `/D` `/W` `/M` | 今日、本计费周、本月的估算费用 |
+| `5h` / `7d` | 5 小时、7 天限额已用比例、该窗口内的估算费用，及距重置的时间 |
+| `/D` `/M` | 今日、本月的估算费用 |
 
 ![色环颜色：正常、警告、严重](docs/states.svg)
 
 - 颜色与 app 自带的用量弹窗一致：75% 以下正常，75% 起黄色，90% 起红色。
-- 计费周指 7 天限额的窗口，不是自然周；没有该窗口时（如使用 API key）不显示 `/W`。
+- 窗口费用按限额自身的窗口计算（重置时间减去 5 小时或 7 天），不是自然日或自然周；没有限额窗口时（如使用 API key）不显示。
 - `/M` 后出现 `*` 表示有模型价格未知，未计入。
 
 ### 安装
@@ -67,10 +67,10 @@ MIT
 
 ## English
 
-A one-line usage band above the Claude Code prompt: context fill, rate-limit windows with reset countdowns, and estimated cost for today, the billing week and this month.
+A one-line usage band above the Claude Code prompt: context fill, the five-hour and seven-day limit windows with their usage, estimated in-window cost and reset countdowns, and estimated cost for today and this month.
 
 ```
-◑ 50% ctx · ○ 3% 5h · 4h22m · ◔ 25% 7d · 4d17h · $12.50/D · $85/W · $300/M
+◑ 50% ctx · ○ 3% $8.4 5h · 4h22m · ◔ 25% $128 7d · 4d17h · $12.50/D · $300/M
 ```
 
 In the desktop app each percentage gets a small ring; in the terminal, a pie glyph.
@@ -80,13 +80,13 @@ In the desktop app each percentage gets a small ring; in the terminal, a pie gly
 | Item | Meaning |
 | --- | --- |
 | `ctx` | Context used, against the auto-compact window (same as `/context`) |
-| `5h` / `7d` | Five-hour and seven-day limit usage, with time until reset |
-| `/D` `/W` `/M` | Estimated cost today, this billing week, this month |
+| `5h` / `7d` | Five-hour and seven-day limit usage, estimated cost within that window, and time until reset |
+| `/D` `/M` | Estimated cost today, this month |
 
 ![Ring colors: normal, warning, critical](docs/states.svg)
 
 - Colors follow the app's own usage popover: normal below 75%, amber from 75%, red from 90%.
-- The billing week is the seven-day limit's window, not a calendar week; `/W` is hidden without it (e.g. on an API key).
+- Window cost follows each limit's own window (its reset minus five hours or seven days), not a calendar day or week; it is hidden without the window (e.g. on an API key).
 - A `*` after `/M` means some models had no known price and were left out.
 
 ### Install

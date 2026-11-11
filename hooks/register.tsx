@@ -34,6 +34,8 @@ const tone = (pct: number): Color | undefined =>
   pct >= CRITICAL_PCT ? 'error' : pct >= WARN_PCT ? 'warning' : undefined
 
 const usd = (n: number) => `$${n.toFixed(2)}`
+// A limit window's spend, beside its percentage: one decimal below $100.
+const windowUsd = (n: number) => (n < 100 ? `$${n.toFixed(1)}` : `$${Math.round(n)}`)
 
 // The context percentage is measured against the auto-compact window, as
 // /context and the session rail do, not the model's full window. The window
@@ -73,33 +75,40 @@ async function measure($: EngineInterface, e: Pick<SessionMeasureInput, 'context
   await update($, now, () => at)
 }
 
-// Day, billing-week and month cost come from scripts/scan.py, which prices
-// every transcript under ~/.claude/projects; at most one scan at a time,
-// spaced by MIN_GAP_MS unless the billing week moved.
+// Day, five-hour-window, billing-week and month cost come from
+// scripts/scan.py, which prices every transcript under ~/.claude/projects; at
+// most one scan at a time, spaced by MIN_GAP_MS unless a limit window moved.
 const MIN_GAP_MS = 60_000
 const PERIOD_MS = 5 * 60_000
+const FIVE_MS = 5 * 3_600_000
 const WEEK_MS = 7 * 86_400_000
 let scanning = false
 let lastScan = 0
-let lastWeekStart: number | undefined
+let lastWindows = ''
 
-// The billing week is the seven-day limit's window, not a calendar week.
-async function weekStart($: EngineInterface) {
-  const reset = (await read($, snap))?.limits.find(l => l.label === '7d')?.resetsAt
-  return reset === undefined ? undefined : reset - WEEK_MS
+// Each window starts its length before its reset: the limits' own windows,
+// not calendar periods.
+async function windowStart($: EngineInterface, label: string, length: number) {
+  const reset = (await read($, snap))?.limits.find(l => l.label === label)?.resetsAt
+  return reset === undefined ? undefined : reset - length
 }
 
 async function scan($: EngineInterface, force = false) {
   const t = await $.clock.now()
-  const week = await weekStart($)
-  if (week !== lastWeekStart) force = true
+  const week = await windowStart($, '7d', WEEK_MS)
+  const five = await windowStart($, '5h', FIVE_MS)
+  const windows = `${week}/${five}`
+  if (windows !== lastWindows) force = true
   if (scanning || (!force && t - lastScan < MIN_GAP_MS)) return
   scanning = true
   lastScan = t
-  lastWeekStart = week
+  lastWindows = windows
   try {
     const script = `${$.plugin.root}/scripts/scan.py`
-    const args = week === undefined ? [] : ['--week-start', String(week / 1000)]
+    const args = [
+      ...(week === undefined ? [] : ['--week-start', String(week / 1000)]),
+      ...(five === undefined ? [] : ['--five-start', String(five / 1000)]),
+    ]
     const { exitCode, stdout, stderr } = await $.process.run(['/usr/bin/python3', '-I', script, ...args], {
       cwd: $.plugin.root,
       timeoutMs: 120_000,
@@ -109,7 +118,7 @@ async function scan($: EngineInterface, force = false) {
       return
     }
     const out = JSON.parse(stdout) as Spend
-    await update($, spend, () => ({ day: out.day, week: out.week, month: out.month, unpriced: out.unpriced }))
+    await update($, spend, () => ({ day: out.day, five: out.five, week: out.week, month: out.month, unpriced: out.unpriced }))
   } catch (err) {
     $.ui.log(`usage-band scan failed: ${String(err)}`, { to: 'debug' })
   } finally {
@@ -152,6 +161,7 @@ export const register: Register = on => {
             {g.pct !== undefined ? `${pie(g.pct)} ` : ''}
             {g.value}
           </Text>
+          {g.spend ? <Text dimColor> {g.spend}</Text> : null}
           <Text dimColor> {g.label}</Text>
         </Text>
       ))
@@ -173,6 +183,11 @@ export const register: Register = on => {
         <Text size="body" tabular weight="medium" color={g.color} dimColor={!g.color}>
           {g.value}
         </Text>
+        {g.spend ? (
+          <Text size="footnote" tabular dimColor>
+            {g.spend}
+          </Text>
+        ) : null}
         <Text size="footnote" tabular dimColor wrap="truncate-end">
           {g.ringLabel ?? g.label}
         </Text>
@@ -195,7 +210,17 @@ type Glyph = 'ctx' | 'five' | 'week' | 'spark' | 'cost'
 
 // ringLabel: the desktop's label where the ring already names the window
 // (5 for the five-hour, w for the seven-day), leaving the countdown alone.
-type Segment = { glyph: Glyph; pct?: number; value: string; label: string; ringLabel?: string; color?: Color }
+// spend: the limit window's cost, drawn dim between the percentage and the
+// countdown.
+type Segment = {
+  glyph: Glyph
+  pct?: number
+  value: string
+  spend?: string
+  label: string
+  ringLabel?: string
+  color?: Color
+}
 
 function segments(s: Snap, p: Spend | null, t: number): Segment[] {
   const out: Segment[] = []
@@ -207,12 +232,13 @@ function segments(s: Snap, p: Spend | null, t: number): Segment[] {
     const countdown = l.resetsAt !== undefined && t ? left(l.resetsAt - t) : ''
     const label = countdown ? `${l.label} · ${countdown}` : l.label
     const ringLabel = glyph === 'spark' ? undefined : countdown
-    out.push({ glyph, pct: l.pct, value: `${l.pct}%`, label, ringLabel, color: tone(l.pct) })
+    const cost = glyph === 'five' ? p?.five : glyph === 'week' ? p?.week : undefined
+    const spend = cost === null || cost === undefined ? undefined : windowUsd(cost)
+    out.push({ glyph, pct: l.pct, value: `${l.pct}%`, spend, label, ringLabel, color: tone(l.pct) })
   }
   if (p) {
     const mark = p.unpriced.length ? '*' : ''
-    const week = p.week === null || p.week === undefined ? '' : `$${Math.round(p.week)}/W · `
-    out.push({ glyph: 'cost', value: `${usd(p.day)}/D`, label: `· ${week}$${Math.round(p.month)}/M${mark}` })
+    out.push({ glyph: 'cost', value: `${usd(p.day)}/D`, label: `· $${Math.round(p.month)}/M${mark}` })
   }
   return out
 }
